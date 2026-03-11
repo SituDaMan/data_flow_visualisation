@@ -1,0 +1,175 @@
+:root {
+  font-family: Inter, Roboto, 'Segoe UI', sans-serif;
+  color: #202124;
+  background: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  padding: 18px 28px;
+  background: #ffffffcc;
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #dde3ea;
+}
+
+.top-bar h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.2px;
+}
+
+.top-bar p {
+  margin: 6px 0 0;
+  color: #5f6368;
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  padding: 20px;
+  min-height: 0;
+}
+
+.input-panel,
+.canvas-panel {
+  background: #fff;
+  border: 1px solid #e0e4ea;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(60, 64, 67, 0.09);
+}
+
+.input-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.hint {
+  margin: 0;
+  color: #5f6368;
+  font-size: 0.9rem;
+}
+
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #5f6368;
+}
+
+.save-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #c1c7d0;
+  border-top-color: #1a73e8;
+}
+
+.is-saving .save-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+.is-saved {
+  color: #188038;
+}
+
+.is-saved .save-icon {
+  border-color: #188038;
+  background: radial-gradient(circle at 45% 45%, #d6f4dd 0%, #d6f4dd 45%, #188038 46%, #188038 100%);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+textarea {
+  width: 100%;
+  min-height: 340px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid #c6ccd5;
+  padding: 12px;
+  font: 500 0.95rem/1.45 'Roboto Mono', Consolas, monospace;
+  color: #202124;
+  outline: none;
+}
+
+textarea:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px #d2e3fc;
+}
+
+.canvas-panel {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.flow-layer,
+.nodes-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.edge-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.node {
+  position: absolute;
+  width: 160px;
+  height: 64px;
+  border: 1px solid #d2d7df;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(32, 33, 36, 0.12);
+  cursor: grab;
+  user-select: none;
+}
+
+.node:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .canvas-panel {
+    min-height: 520px;
+  }
+}
