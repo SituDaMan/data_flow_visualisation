@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'https://esm.sh/reac
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
 const e = React.createElement;
+const STORAGE_KEY = 'data-flow-visualiser-input';
 const SAMPLE_INPUT = `Customer Profile: CRM > API Gateway > Data Lake > Analytics\nOrder Events: Commerce Platform > API Gateway > Fraud Engine > Data Lake\nBilling Feed: Billing Core > Integration Hub > Data Lake > Finance BI`;
 const COLORS = ['#1A73E8', '#34A853', '#FBBC05', '#EA4335', '#8E24AA', '#0097A7'];
 const NODE = { width: 160, height: 64 };
@@ -21,13 +22,24 @@ const makePositions = (names) => names.reduce((acc, name, i) => {
 }, {});
 
 function App() {
-  const [input, setInput] = useState(SAMPLE_INPUT);
+  const [input, setInput] = useState(() => localStorage.getItem(STORAGE_KEY) || SAMPLE_INPUT);
+  const [saveState, setSaveState] = useState('saved');
   const flows = useMemo(() => parseFlows(input), [input]);
   const nodes = useMemo(() => [...new Set(flows.flatMap((f) => f.systems))], [flows]);
   const [positions, setPositions] = useState(() => makePositions(nodes));
   const dragRef = useRef(null);
   const canvasRef = useRef(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
+
+  useEffect(() => {
+    setSaveState('saving');
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, input);
+      setSaveState('saved');
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [input]);
 
   useEffect(() => {
     setPositions((prev) => {
@@ -81,6 +93,14 @@ function App() {
         e('h2', null, 'Flow Definition'),
         e('p', { className: 'hint' }, 'Format: Entity Name: System A > System B > System C'),
         e('textarea', { value: input, onChange: (ev) => setInput(ev.target.value), spellCheck: false }),
+        e('div', {
+          className: `save-status ${saveState === 'saving' ? 'is-saving' : 'is-saved'}`,
+          role: 'status',
+          'aria-live': 'polite',
+        },
+        e('span', { className: 'save-icon', 'aria-hidden': 'true' }),
+        e('span', null, saveState === 'saving' ? 'Saving changes…' : 'All changes saved'),
+        ),
       ),
       e('section', { className: 'canvas-panel', ref: canvasRef },
         e('svg', { className: 'flow-layer', width: size.width, height: size.height },
@@ -101,7 +121,13 @@ function App() {
             const d = `M ${sx} ${sy} C ${sx + c} ${sy}, ${ex - c} ${ey}, ${ex} ${ey}`;
             return e('g', { key: edge.key },
               e('path', { d, stroke: edge.color, strokeWidth: 3, fill: 'none', markerEnd: `url(#arrow-${edge.color.slice(1)})` }),
-              e('text', { x: (sx + ex) / 2, y: (sy + ey) / 2 - 10 - edge.idx * 12, fill: edge.color, className: 'edge-label' }, edge.label),
+              e('text', {
+                x: (sx + ex) / 2,
+                y: (sy + ey) / 2 - 10 - edge.idx * 12,
+                fill: edge.color,
+                className: 'edge-label',
+                textAnchor: 'middle',
+              }, edge.label),
             );
           }),
         ),

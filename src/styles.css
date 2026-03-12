@@ -71,6 +71,41 @@ body {
   font-size: 0.9rem;
 }
 
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #5f6368;
+}
+
+.save-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #c1c7d0;
+  border-top-color: #1a73e8;
+}
+
+.is-saving .save-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+.is-saved {
+  color: #188038;
+}
+
+.is-saved .save-icon {
+  border-color: #188038;
+  background: radial-gradient(circle at 45% 45%, #d6f4dd 0%, #d6f4dd 45%, #188038 46%, #188038 100%);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 textarea {
   width: 100%;
   min-height: 340px;
