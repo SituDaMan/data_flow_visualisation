@@ -3,9 +3,11 @@ import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 
 const e = React.createElement;
 const STORAGE_KEY = 'data-flow-visualiser-input';
+const POSITIONS_KEY = 'data-flow-visualiser-node-positions';
 const SAMPLE_INPUT = `Customer Profile: CRM > API Gateway > Data Lake > Analytics\nOrder Events: Commerce Platform > API Gateway > Fraud Engine > Data Lake\nBilling Feed: Billing Core > Integration Hub > Data Lake > Finance BI`;
 const COLORS = ['#1A73E8', '#34A853', '#FBBC05', '#EA4335', '#8E24AA', '#0097A7'];
 const NODE = { width: 160, height: 64 };
+const WORLD = { width: 2400, height: 1600 };
 
 const parseFlows = (text) => text.split('\n').map((l, i) => {
   const [label, chain] = l.split(':');
@@ -21,15 +23,37 @@ const makePositions = (names) => names.reduce((acc, name, i) => {
   return acc;
 }, {});
 
+const readStoredPositions = () => {
+  try {
+    const raw = localStorage.getItem(POSITIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 function App() {
   const [input, setInput] = useState(() => localStorage.getItem(STORAGE_KEY) || SAMPLE_INPUT);
   const [saveState, setSaveState] = useState('saved');
   const flows = useMemo(() => parseFlows(input), [input]);
   const nodes = useMemo(() => [...new Set(flows.flatMap((f) => f.systems))], [flows]);
-  const [positions, setPositions] = useState(() => makePositions(nodes));
+  const [positions, setPositions] = useState(() => readStoredPositions());
   const dragRef = useRef(null);
+  const panRef = useRef(null);
   const canvasRef = useRef(null);
-  const [size, setSize] = useState({ width: 900, height: 620 });
+  const [viewport, setViewport] = useState({ x: 32, y: 32, scale: 1 });
+  const [isPanning, setIsPanning] = useState(false);
+
+  const toWorldPoint = (clientX, clientY, currentViewport = viewport) => {
+    const bounds = canvasRef.current?.getBoundingClientRect();
+    if (!bounds) return { x: 0, y: 0 };
+    return {
+      x: (clientX - bounds.left - currentViewport.x) / currentViewport.scale,
+      y: (clientY - bounds.top - currentViewport.y) / currentViewport.scale,
+    };
+  };
 
   useEffect(() => {
     setSaveState('saving');
@@ -42,6 +66,14 @@ function App() {
   }, [input]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions));
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [positions]);
+
+  useEffect(() => {
     setPositions((prev) => {
       const base = makePositions(nodes);
       const next = {};
@@ -49,30 +81,36 @@ function App() {
       return next;
     });
   }, [nodes]);
-
-  useEffect(() => {
-    const ro = new ResizeObserver((entries) => {
-      const r = entries[0]?.contentRect;
-      if (r) setSize({ width: Math.max(680, r.width), height: Math.max(500, r.height) });
-    });
-    if (canvasRef.current) ro.observe(canvasRef.current);
-    return () => ro.disconnect();
-  }, []);
-
   useEffect(() => {
     const move = (event) => {
-      if (!dragRef.current || !canvasRef.current) return;
-      const b = canvasRef.current.getBoundingClientRect();
-      const { node, dx, dy } = dragRef.current;
-      const x = Math.max(12, Math.min(event.clientX - b.left - dx, size.width - NODE.width - 12));
-      const y = Math.max(12, Math.min(event.clientY - b.top - dy, size.height - NODE.height - 12));
-      setPositions((prev) => ({ ...prev, [node]: { x, y } }));
+      if (dragRef.current) {
+        const pointerWorld = toWorldPoint(event.clientX, event.clientY);
+        const { node, dx, dy } = dragRef.current;
+        const x = Math.max(12, Math.min(pointerWorld.x - dx, WORLD.width - NODE.width - 12));
+        const y = Math.max(12, Math.min(pointerWorld.y - dy, WORLD.height - NODE.height - 12));
+        setPositions((prev) => ({ ...prev, [node]: { x, y } }));
+      }
+
+      if (panRef.current) {
+        const nextX = panRef.current.originX + (event.clientX - panRef.current.startX);
+        const nextY = panRef.current.originY + (event.clientY - panRef.current.startY);
+        setViewport((prev) => ({ ...prev, x: nextX, y: nextY }));
+      }
     };
-    const up = () => { dragRef.current = null; };
+
+    const up = () => {
+      dragRef.current = null;
+      panRef.current = null;
+      setIsPanning(false);
+    };
+
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [size]);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [viewport]);
 
   const edges = flows.flatMap((f, i) => f.systems.slice(0, -1).map((s, j) => ({
     key: `${f.id}-${j}`,
@@ -102,50 +140,87 @@ function App() {
         e('span', null, saveState === 'saving' ? 'Saving changes…' : 'All changes saved'),
         ),
       ),
-      e('section', { className: 'canvas-panel', ref: canvasRef },
-        e('svg', { className: 'flow-layer', width: size.width, height: size.height },
-          e('defs', null,
-            ...COLORS.map((c) => e('marker', { key: c, id: `arrow-${c.slice(1)}`, markerWidth: 10, markerHeight: 8, refX: 8, refY: 4, orient: 'auto' },
-              e('path', { d: 'M0,0 L0,8 L9,4 z', fill: c }),
-            )),
-          ),
-          ...edges.map((edge) => {
-            const from = positions[edge.from];
-            const to = positions[edge.to];
-            if (!from || !to) return null;
-            const sx = from.x + NODE.width;
-            const sy = from.y + NODE.height / 2;
-            const ex = to.x;
-            const ey = to.y + NODE.height / 2;
-            const c = Math.max(36, Math.abs(ex - sx) / 2);
-            const d = `M ${sx} ${sy} C ${sx + c} ${sy}, ${ex - c} ${ey}, ${ex} ${ey}`;
-            return e('g', { key: edge.key },
-              e('path', { d, stroke: edge.color, strokeWidth: 3, fill: 'none', markerEnd: `url(#arrow-${edge.color.slice(1)})` }),
-              e('text', {
-                x: (sx + ex) / 2,
-                y: (sy + ey) / 2 - 10 - edge.idx * 12,
-                fill: edge.color,
-                className: 'edge-label',
-                textAnchor: 'middle',
-              }, edge.label),
-            );
-          }),
+      e('section', {
+        className: `canvas-panel ${isPanning ? 'is-panning' : ''}`,
+        ref: canvasRef,
+        onContextMenu: (ev) => ev.preventDefault(),
+        onPointerDown: (ev) => {
+          if (ev.button !== 2) return;
+          ev.preventDefault();
+          setIsPanning(true);
+          panRef.current = {
+            startX: ev.clientX,
+            startY: ev.clientY,
+            originX: viewport.x,
+            originY: viewport.y,
+          };
+        },
+        onWheel: (ev) => {
+          ev.preventDefault();
+          const zoomFactor = Math.exp(-ev.deltaY * 0.0015);
+          const nextScale = Math.max(0.4, Math.min(viewport.scale * zoomFactor, 2.5));
+          const pointerBefore = toWorldPoint(ev.clientX, ev.clientY, viewport);
+          const bounds = canvasRef.current?.getBoundingClientRect();
+          if (!bounds) return;
+          const nextX = ev.clientX - bounds.left - (pointerBefore.x * nextScale);
+          const nextY = ev.clientY - bounds.top - (pointerBefore.y * nextScale);
+          setViewport({ x: nextX, y: nextY, scale: nextScale });
+        },
+      },
+      e('div', {
+        className: 'viewport',
+        style: { transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` },
+      },
+      e('svg', { className: 'flow-layer', width: WORLD.width, height: WORLD.height },
+        e('defs', null,
+          ...COLORS.map((c) => e('marker', { key: c, id: `arrow-${c.slice(1)}`, markerWidth: 10, markerHeight: 8, refX: 8, refY: 4, orient: 'auto' },
+            e('path', { d: 'M0,0 L0,8 L9,4 z', fill: c }),
+          )),
         ),
-        e('div', { className: 'nodes-layer' },
-          ...nodes.map((name) => {
-            const pos = positions[name] || { x: 12, y: 12 };
-            return e('button', {
-              key: name,
-              className: 'node',
-              type: 'button',
-              style: { transform: `translate(${pos.x}px, ${pos.y}px)` },
-              onPointerDown: (ev) => {
-                const b = ev.currentTarget.getBoundingClientRect();
-                dragRef.current = { node: name, dx: ev.clientX - b.left, dy: ev.clientY - b.top };
-              },
-            }, name);
-          }),
-        ),
+        ...edges.map((edge) => {
+          const from = positions[edge.from];
+          const to = positions[edge.to];
+          if (!from || !to) return null;
+          const sx = from.x + NODE.width;
+          const sy = from.y + NODE.height / 2;
+          const ex = to.x;
+          const ey = to.y + NODE.height / 2;
+          const c = Math.max(36, Math.abs(ex - sx) / 2);
+          const d = `M ${sx} ${sy} C ${sx + c} ${sy}, ${ex - c} ${ey}, ${ex} ${ey}`;
+          return e('g', { key: edge.key },
+            e('path', { d, stroke: edge.color, strokeWidth: 3, fill: 'none', markerEnd: `url(#arrow-${edge.color.slice(1)})` }),
+            e('text', {
+              x: (sx + ex) / 2,
+              y: (sy + ey) / 2 - 10 - edge.idx * 12,
+              fill: edge.color,
+              className: 'edge-label',
+              textAnchor: 'middle',
+            }, edge.label),
+          );
+        }),
+      ),
+      e('div', { className: 'nodes-layer' },
+        ...nodes.map((name) => {
+          const pos = positions[name] || { x: 12, y: 12 };
+          return e('button', {
+            key: name,
+            className: 'node',
+            type: 'button',
+            style: { transform: `translate(${pos.x}px, ${pos.y}px)` },
+            onPointerDown: (ev) => {
+              if (ev.button !== 0) return;
+              const pointerWorld = toWorldPoint(ev.clientX, ev.clientY);
+              dragRef.current = {
+                node: name,
+                dx: pointerWorld.x - pos.x,
+                dy: pointerWorld.y - pos.y,
+              };
+            },
+          }, name);
+        }),
+      ),
+      ),
+      e('div', { className: 'canvas-help' }, 'Right-click + drag to pan. Scroll to zoom.'),
       ),
     ),
   );

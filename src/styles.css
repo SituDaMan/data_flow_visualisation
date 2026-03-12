@@ -127,12 +127,24 @@ textarea:focus {
   position: relative;
   min-height: 620px;
   overflow: hidden;
+  cursor: default;
+}
+
+.canvas-panel.is-panning {
+  cursor: grabbing;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
 }
 
 .flow-layer,
 .nodes-layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
 }
 
 .edge-label {
@@ -162,6 +174,19 @@ textarea:focus {
 
 .node:active {
   cursor: grabbing;
+}
+
+.canvas-help {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  background: #ffffffd8;
+  border: 1px solid #dbe1e9;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  color: #5f6368;
+  backdrop-filter: blur(3px);
 }
 
 @media (max-width: 1080px) {
