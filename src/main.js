@@ -7,7 +7,7 @@ const POSITIONS_KEY = 'data-flow-visualiser-node-positions';
 const SAMPLE_INPUT = `Customer Profile: CRM > API Gateway > Data Lake > Analytics\nOrder Events: Commerce Platform > API Gateway > Fraud Engine > Data Lake\nBilling Feed: Billing Core > Integration Hub > Data Lake > Finance BI`;
 const COLORS = ['#1A73E8', '#34A853', '#FBBC05', '#EA4335', '#8E24AA', '#0097A7'];
 const NODE = { width: 160, height: 64 };
-const WORLD = { width: 2400, height: 1600 };
+const WORLD = { minX: -2800, maxX: 2800, minY: -2800, maxY: 2800, originX: 3000, originY: 3000, width: 6000, height: 6000 };
 
 const parseFlows = (text) => text.split('\n').map((l, i) => {
   const [label, chain] = l.split(':');
@@ -43,15 +43,15 @@ function App() {
   const dragRef = useRef(null);
   const panRef = useRef(null);
   const canvasRef = useRef(null);
-  const [viewport, setViewport] = useState({ x: 32, y: 32, scale: 1 });
+  const [viewport, setViewport] = useState({ x: -2960, y: -2960, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
 
   const toWorldPoint = (clientX, clientY, currentViewport = viewport) => {
     const bounds = canvasRef.current?.getBoundingClientRect();
     if (!bounds) return { x: 0, y: 0 };
     return {
-      x: (clientX - bounds.left - currentViewport.x) / currentViewport.scale,
-      y: (clientY - bounds.top - currentViewport.y) / currentViewport.scale,
+      x: ((clientX - bounds.left - currentViewport.x) / currentViewport.scale) - WORLD.originX,
+      y: ((clientY - bounds.top - currentViewport.y) / currentViewport.scale) - WORLD.originY,
     };
   };
 
@@ -86,8 +86,8 @@ function App() {
       if (dragRef.current) {
         const pointerWorld = toWorldPoint(event.clientX, event.clientY);
         const { node, dx, dy } = dragRef.current;
-        const x = Math.max(12, Math.min(pointerWorld.x - dx, WORLD.width - NODE.width - 12));
-        const y = Math.max(12, Math.min(pointerWorld.y - dy, WORLD.height - NODE.height - 12));
+        const x = Math.max(WORLD.minX, Math.min(pointerWorld.x - dx, WORLD.maxX - NODE.width));
+        const y = Math.max(WORLD.minY, Math.min(pointerWorld.y - dy, WORLD.maxY - NODE.height));
         setPositions((prev) => ({ ...prev, [node]: { x, y } }));
       }
 
@@ -162,8 +162,8 @@ function App() {
           const pointerBefore = toWorldPoint(ev.clientX, ev.clientY, viewport);
           const bounds = canvasRef.current?.getBoundingClientRect();
           if (!bounds) return;
-          const nextX = ev.clientX - bounds.left - (pointerBefore.x * nextScale);
-          const nextY = ev.clientY - bounds.top - (pointerBefore.y * nextScale);
+          const nextX = ev.clientX - bounds.left - ((pointerBefore.x + WORLD.originX) * nextScale);
+          const nextY = ev.clientY - bounds.top - ((pointerBefore.y + WORLD.originY) * nextScale);
           setViewport({ x: nextX, y: nextY, scale: nextScale });
         },
       },
@@ -181,10 +181,10 @@ function App() {
           const from = positions[edge.from];
           const to = positions[edge.to];
           if (!from || !to) return null;
-          const sx = from.x + NODE.width;
-          const sy = from.y + NODE.height / 2;
-          const ex = to.x;
-          const ey = to.y + NODE.height / 2;
+          const sx = from.x + WORLD.originX + NODE.width;
+          const sy = from.y + WORLD.originY + (NODE.height / 2);
+          const ex = to.x + WORLD.originX;
+          const ey = to.y + WORLD.originY + (NODE.height / 2);
           const c = Math.max(36, Math.abs(ex - sx) / 2);
           const d = `M ${sx} ${sy} C ${sx + c} ${sy}, ${ex - c} ${ey}, ${ex} ${ey}`;
           return e('g', { key: edge.key },
@@ -206,7 +206,7 @@ function App() {
             key: name,
             className: 'node',
             type: 'button',
-            style: { transform: `translate(${pos.x}px, ${pos.y}px)` },
+            style: { transform: `translate(${pos.x + WORLD.originX}px, ${pos.y + WORLD.originY}px)` },
             onPointerDown: (ev) => {
               if (ev.button !== 0) return;
               const pointerWorld = toWorldPoint(ev.clientX, ev.clientY);
